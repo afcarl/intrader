@@ -1,0 +1,9 @@
+[Auth]
+username=myUsername
+password=myPassword
+
+[Sandbox]
+enabled=False
+# sandbox auth is NOT SECURE, use a unique password!
+username=mySandboxUsername
+password=mySandboxPassword

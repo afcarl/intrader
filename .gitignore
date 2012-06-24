@@ -1,0 +1,6 @@
+*.pyc
+*.png
+*.csv
+*.log
+pip-log.txt
+intrader.conf
