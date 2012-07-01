@@ -1,10 +1,19 @@
 import requests
 import urllib2 # requests hits a bug on POST responses from Intrade
 import xml.etree.ElementTree as xml
+from xml.parsers.expat import ExpatError
 import xmltodict
-from math import ceil
-import time
-from decimal import *
+from decimal import Decimal
+from simplejson import dumps
+import ConfigParser
+import pytz
+from datetime import datetime
+
+class IntradeError(Exception):
+    pass
+
+class MarketHoursError(Exception):
+    pass
 
 class Intrade():
 
@@ -13,29 +22,82 @@ class Intrade():
     test_get = 'http://testexternal.intrade.com/jsp/XML/MarketData/'
     test_post = 'http://testexternal.intrade.com/xml/handler.jsp'
 
-    def __init__(self, user, password, sandbox = False):
-        self.user = user
-        self.password = password
-        self.sandbox = sandbox
-        self.session = self.get_login()['tsResponse']['sessionData']
-
-    def get_login(self):
-        return self.post(params = {'header': {'requestOp': 'getLogin'},
-                                   'body': {'membershipNumber': self.user,
-                                            'password': self.password}},
-                         parse_to_json = False)
-
+    def __init__(self, config_path = 'intrader.conf'):
+        self.extract_config(config_path)
+        self.session = self.get_login()['sessionData']
 
     def __str__(self):
         prefix = 'SANDBOXED' if self.sandbox else ''
         return ' '.join([prefix, 'Intrade API caller instance with user', self.user,
                          'and session', self.session])
 
-    class IntradeError(BaseException):
-        pass
+    def extract_config(self, config_path):
+        """ Reads config file variables into Intrade object """
+        config = ConfigParser.ConfigParser()
+        config.read(config_path)
+
+        # sandbox and auth
+        self.sandbox = (True if config.get('Sandbox', 'enabled').lower() == 'true'
+                        else False)
+        if self.sandbox:
+            self.user = config.get('Sandbox', 'username')
+            self.password = config.get('Sandbox', 'password')
+        else:
+            self.user = config.get('Auth', 'username')
+            self.password = config.get('Auth', 'password')
+            
+        # market hours
+        self.intrade_tz = pytz.timezone(config.get('Intrade', 'timezone'))
+        self.market_start = config.get('Intrade', 'market_start')
+        self.market_end = config.get('Intrade', 'market_end')
+
+    def keepalive(self):
+        """ Reauths if necessary to keep connection alive """
+        if (datetime.today() - self.last_auth).seconds >= (60 * 60 * 5):
+            self.session = self.get_login()['sessionData']
+
+    def prettyable(fn):
+        """ Allows pretty printing of function by passing pretty = True """
+        def wrapper(*args, **kwargs):
+            if 'pretty' in kwargs and kwargs['pretty'] == True:
+                return dumps(fn(*args, **kwargs), indent = 4, sort_keys = False)
+            else:
+                return fn(*args, **kwargs)
+        return wrapper
+
+    def market_hours(fn):
+        """ Blocks wrapped function and raises trading hours error if call
+        occurs outside of Intrade hours """
+        def wrapper(*args, **kwargs):
+            utc_dt = pytz.utc.localize(datetime.utcnow())
+            intrade_dt = self.intrade_tz.localize(utc_dt.astimezone(intrade_tz))
+            current_hm = ''.join([str(intrade_dt.hour), str(intrade_dt.minute)])
+
+            eff_ms, eff_me = int(self.market_start), int(self.market_end)
+            eff_curr = int(current_hm)
+            # handling for downtime crossing midnight
+            if eff_me >= eff_ms:
+                if eff_curr >= eff_me or eff_curr <= eff_ms:
+                    raise MarketHoursError('call cannot occur outside of trading hours')
+            elif eff_curr >= eff_me and eff_curr <= eff_ms:
+                raise MarketHoursError('call cannot occur outside of trading hours')
+            return fn(*args, **kwargs)
+        return wrapper
+
+    def get_login(self):
+        """ Auth """
+        login = self.post(params = {'header': {'requestOp': 'getLogin'},
+                                   'body': {'membershipNumber': self.user,
+                                            'password': self.password}},
+                         parse_to_json = True)
+        if login['sessionData'] == 'ANONYMOUS':
+            raise IntradeError('login failed')
+        self.last_auth = datetime.today()
+        return login
 
     def get(self, res, params = None, parse_to_json = True):
         """ HTTP GET to Intrade """
+        self.keepalive()
         url = self.test_get if self.sandbox else self.base_get
         while True:
             try:
@@ -43,14 +105,18 @@ class Intrade():
                 break
             except:
                 pass # this should probably be less infinite
+        
+        try:
+            parsed = xmltodict.parse(r.content)
+        except ExpatError:
+            raise IntradeError('error parsing GET return')
 
-        parsed = xmltodict.parse(r.content)
         for key in parsed.iterkeys():
             if 'error' in parsed[key]:
-                raise self.IntradeError(parsed[key]['error'])
+                raise IntradeError(parsed[key]['error'])
 
         if parse_to_json:
-            return parsed
+            return parsed.items()[0][1]
         else:
             return r.content
 
@@ -71,6 +137,7 @@ class Intrade():
         """ HTTP or HTTPS POST to Intrade using XML, uses urllib2 since
         requests hits a prolog error / bug """
 
+        self.keepalive()
         url = self.test_post if self.sandbox else self.base_post
 
         r = urllib2.Request(url,
@@ -83,50 +150,44 @@ class Intrade():
 
         if errored:
             print self.make_xml(params)
-            raise self.IntradeError(parsed['tsResponse']['errorcode'])
+            raise IntradeError(parsed['tsResponse']['errorcode'])
 
         if parse_to_json:
-            return parsed
+            return parsed.items()[0][1]
         else:
             return u.read()
-                          
-    def contracts(self, class_id = None):
+
+    @prettyable
+    def contracts(self, class_id = None, **kwargs):
         """ Active contract info, either all or for specific class """
         if class_id:
             return self.get('XMLForClass.jsp', {'classID': class_id})
         else:
             return self.get('xml.jsp')
 
-    def prices(self, contract_ids,
-               depth = 5, timestamp = ceil(time.time()) * 1000):
+    @market_hours
+    @prettyable
+    def prices(self, contract_ids, depth = 5, timestamp = 0, **kwargs):
         """ Current prices posted after timestamp for given contract IDs """
         return self.get('ContractBookXML.jsp', {'id': contract_ids,
                                                 'depth': depth,
                                                 'timestamp': timestamp})
 
-    def con_info(self, contract_ids):
+    @prettyable
+    def con_info(self, contract_ids, **kwargs):
         """ Lifetime contract info for one contract """
         return self.get('ConInfo.jsp', {'id': contract_ids})
 
-    def closing_price(self, contract_id):
+    @prettyable
+    def closing_price(self, contract_id, **kwargs):
         """ Historical closing prices for lifetime of one contract """
         if not isinstance(contract_id, (str, int)):
-            raise self.IntradeError('closing_price requires exactly one contract_id (str or int)')
+            raise IntradeError('closing_price requires exactly one contract_id (str or int)')
         return self.get('ClosingPrice.jsp', {'conID': contract_id})
 
     def time_and_sales(self, contract_id):
         # was broken at time of writing, maybe they'll fix it someday
         return None
-
-    def get_login(self):
-        """ Auth """
-        login = self.post(params = {'header': {'requestOp': 'getLogin'},
-                                   'body': {'membershipNumber': self.user,
-                                            'password': self.password}},
-                         parse_to_json = True)
-        if login['tsResponse']['sessionData'] == 'ANONYMOUS':
-            raise self.IntradeError('login failed')
-        return login
 
     def get_balance(self):
         """ Available and Frozen balances in USD cents """
@@ -140,19 +201,19 @@ class Intrade():
         # validation checks before sending request
         try:
             if order_dict['side'] not in ['B', 'S']:
-                raise self.IntradeError('order side must be B or S')
+                raise IntradeError('order side must be B or S')
             if ((not isinstance(order_dict['quantity'], int)) or
                 order_dict['quantity'] <= 0):
-                raise self.IntradeError('order quantity must be integer greater than zero')
+                raise IntradeError('order quantity must be integer greater than zero')
             if order_dict['timeInForce'] not in ['GTC', 'GFS', 'GTT']:
-                raise self.IntradeError('order time_in_force must be GTC, GFS, or GTT')
+                raise IntradeError('order time_in_force must be GTC, GFS, or GTT')
 
             # convert prices in cents to prices in probabilities based on $10 contract
             order_dict['limitPrice'] = order_dict['limitPrice'] / float(10)
             if 'touchPrice' in order_dict or order_dict['orderType'] == 'T':
                 order_dict['touchPrice'] = order_dict['touchPrice'] / float(10)
         except KeyError:
-            raise self.IntradeError('required field missing from order constructor')
+            raise IntradeError('required field missing from order constructor')
     
         order_str = ''
         for var in ['conID', 'side', 'limitPrice', 'quantity', 'orderType',
@@ -162,20 +223,26 @@ class Intrade():
 
         return order_str.rstrip(',')
 
-    def multi_order_request(self, orders, cancel_previous = False):
+    @market_hours
+    @prettyable
+    def multi_order_request(self, orders, cancel_previous = False, **kwargs):
         """ Submits multiple orders """
         return self.post(params = {'header': {'requestOp': 'multiOrderRequest'},
                                    'body': {'cancelPrevious': cancel_previous,
                                             'order': orders,
                                             'sessionData': self.session}})
 
-    def cancel_multiple_orders(self, orders):
-        """ Cancels all open orders submitted """
+    @market_hours
+    @prettyable
+    def cancel_multiple_orders(self, orders, **kwargs):
+        """ Cancels all open orders previously submitted """
         return self.post(params = {'header': {'requestOp': 'cancelMultipleOrdersForUser'},
                                    'body': {'orderID': orders,
                                             'sessionData': self.session}})
 
-    def cancel_orders(self, contract, types = 'ALL'):
+    @market_hours
+    @prettyable
+    def cancel_orders(self, contract, types = 'ALL', **kwargs):
         """ Cancels specified type of open orders in one contract """
         if types not in ['ALL', 'BIDS', 'OFFERS']:
             raise IntradeError('cancel_orders requires order type of ALL, BIDS, or OFFERS')
@@ -190,19 +257,23 @@ class Intrade():
                                    'body': {'contractID': contract,
                                             'sessionData': self.session}})
 
-    def cancel_all_in_event(self, event):
+    @market_hours
+    @prettyable
+    def cancel_all_in_event(self, event, **kwargs):
         """ Cancels all orders in one event """
         return self.post(params = {'header': {'requestOp': 'cancelAllInEvent'},
                                    'body': {'eventID': event,
                                             'sessionData': self.session}})
 
-    def get_position(self, contracts):
+    @prettyable
+    def get_position(self, contracts, **kwargs):
         """ Gets current positions for specified contracts """
         return self.post(params = {'header': {'requestOp': 'getPosForUser'},
                                    'body': {'contractID': contracts,
                                             'sessionData': self.session}})
 
-    def get_open_orders(self, contract = None):
+    @prettyable
+    def get_open_orders(self, contract = None, **kwargs):
         """ Gets all of user's open orders for all or specified contract """
         body = {'sessionData': self.session}
         if contract:
@@ -210,4 +281,9 @@ class Intrade():
         return self.post(params = {'header': {'requestOp': 'getOpenOrders'},
                                    'body': body})
 
-    
+    @prettyable
+    def get_orders(self, orders, **kwargs):
+        """ Gets information on specified order IDs """
+        return self.post(params = {'header': {'requestOp': 'getOrdersForUser'},
+                                   'body': {'orderID': orders,
+                                            'sessionData': self.session}})
