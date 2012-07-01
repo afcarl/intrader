@@ -1,7 +1,6 @@
 import sys
 import pymongo
 import intrade_api
-from intrader_lib import intrade_auth
 import threading
 from simplejson import dumps
 import time
@@ -41,15 +40,15 @@ class PriceScraper(threading.Thread):
         while True:
             try:
                 r = self.intrade.prices(self.contracts, timestamp = self.last_new)
-                self.last_new = r['ContractBookInfo']['@lastUpdateTime']
-                if 'contractInfo' in r['ContractBookInfo']:
-                    for rec in r['ContractBookInfo']['contractInfo']:
-                        rec['@lastUpdateTime'] = r['ContractBookInfo']['@lastUpdateTime']
+                self.last_new = r['@lastUpdateTime']
+                if 'contractInfo' in r:
+                    for rec in r['contractInfo']:
+                        rec['@lastUpdateTime'] = r['@lastUpdateTime']
                         self.data.price.save(rec)
                     print 'New price data recorded for', self.contracts
                 time.sleep(5)
-            except: # some kind of unicode thing?
-                print 'ERROR:', r
+            except TypeError: # some kind of unicode thing?
+                print 'Error in PriceScraper'
                 pass
     
 def main():
@@ -57,7 +56,7 @@ def main():
     conn = pymongo.Connection()
     data = conn.intrade
 
-    intrade = intrade_auth()
+    intrade = intrade_api.Intrade()
 
     dow_thread = DowScraper(data)
     dow_thread.setDaemon(True)

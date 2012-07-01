@@ -53,9 +53,8 @@ class Intrade():
 
     def keepalive(self):
         """ Reauths if necessary to keep connection alive """
-        if self.last_auth:
-            if (datetime.today() - self.last_auth).seconds >= (60 * 60 * 5):
-                self.session = self.get_login()['sessionData']
+        if (datetime.today() - self.last_auth).seconds >= (60 * 60 * 5):
+            self.session = self.get_login()['sessionData']
 
     def prettyable(fn):
         """ Allows pretty printing of function by passing pretty = True """
@@ -66,34 +65,30 @@ class Intrade():
                 return fn(*args, **kwargs)
         return wrapper
 
-    def market_hours(fn):
-        """ Blocks wrapped function and raises trading hours error if call
-        occurs outside of Intrade hours """
-        def wrapper(*args, **kwargs):
-            utc_dt = pytz.utc.localize(datetime.utcnow())
-            intrade_dt = self.intrade_tz.localize(utc_dt.astimezone(intrade_tz))
-            current_hm = ''.join([str(intrade_dt.hour), str(intrade_dt.minute)])
+    def check_market_hours(self):
+        """ Raises trading hours error if called outside of trading hours """
+        utc_dt = pytz.utc.localize(datetime.utcnow())
+        intrade_dt = utc_dt.astimezone(self.intrade_tz)
+        current_hm = ''.join([str(intrade_dt.hour), str(intrade_dt.minute)])
 
-            eff_ms, eff_me = int(self.market_start), int(self.market_end)
-            eff_curr = int(current_hm)
-            # handling for downtime crossing midnight
-            if eff_me >= eff_ms:
-                if eff_curr >= eff_me or eff_curr <= eff_ms:
-                    raise MarketHoursError('call cannot occur outside of trading hours')
-            elif eff_curr >= eff_me and eff_curr <= eff_ms:
+        eff_ms, eff_me = int(self.market_start), int(self.market_end)
+        eff_curr = int(current_hm)
+        # handling for downtime crossing midnight
+        if eff_me >= eff_ms:
+            if eff_curr >= eff_me or eff_curr <= eff_ms:
                 raise MarketHoursError('call cannot occur outside of trading hours')
-            return fn(*args, **kwargs)
-        return wrapper
+        elif eff_curr >= eff_me and eff_curr <= eff_ms:
+            raise MarketHoursError('call cannot occur outside of trading hours')
 
     def get_login(self):
         """ Auth """
+        self.last_auth = datetime.today()
         login = self.post(params = {'header': {'requestOp': 'getLogin'},
                                    'body': {'membershipNumber': self.user,
                                             'password': self.password}},
                          parse_to_json = True)
         if login['sessionData'] == 'ANONYMOUS':
             raise IntradeError('login failed')
-        self.last_auth = datetime.today()
         return login
 
     def get(self, res, params = None, parse_to_json = True):
@@ -166,10 +161,10 @@ class Intrade():
         else:
             return self.get('xml.jsp')
 
-    @market_hours
     @prettyable
     def prices(self, contract_ids, depth = 5, timestamp = 0, **kwargs):
         """ Current prices posted after timestamp for given contract IDs """
+        self.check_market_hours()
         return self.get('ContractBookXML.jsp', {'id': contract_ids,
                                                 'depth': depth,
                                                 'timestamp': timestamp})
@@ -224,27 +219,27 @@ class Intrade():
 
         return order_str.rstrip(',')
 
-    @market_hours
     @prettyable
     def multi_order_request(self, orders, cancel_previous = False, **kwargs):
         """ Submits multiple orders """
+        self.check_market_hours()
         return self.post(params = {'header': {'requestOp': 'multiOrderRequest'},
                                    'body': {'cancelPrevious': cancel_previous,
                                             'order': orders,
                                             'sessionData': self.session}})
 
-    @market_hours
     @prettyable
     def cancel_multiple_orders(self, orders, **kwargs):
         """ Cancels all open orders previously submitted """
+        self.check_market_hours()
         return self.post(params = {'header': {'requestOp': 'cancelMultipleOrdersForUser'},
                                    'body': {'orderID': orders,
                                             'sessionData': self.session}})
 
-    @market_hours
     @prettyable
     def cancel_orders(self, contract, types = 'ALL', **kwargs):
         """ Cancels specified type of open orders in one contract """
+        self.check_market_hours()
         if types not in ['ALL', 'BIDS', 'OFFERS']:
             raise IntradeError('cancel_orders requires order type of ALL, BIDS, or OFFERS')
         if types == 'ALL':
@@ -258,10 +253,10 @@ class Intrade():
                                    'body': {'contractID': contract,
                                             'sessionData': self.session}})
 
-    @market_hours
     @prettyable
     def cancel_all_in_event(self, event, **kwargs):
         """ Cancels all orders in one event """
+        self.check_market_hours()
         return self.post(params = {'header': {'requestOp': 'cancelAllInEvent'},
                                    'body': {'eventID': event,
                                             'sessionData': self.session}})
