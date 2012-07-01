@@ -53,8 +53,9 @@ class Intrade():
 
     def keepalive(self):
         """ Reauths if necessary to keep connection alive """
-        if (datetime.today() - self.last_auth).seconds >= (60 * 60 * 5):
-            self.session = self.get_login()['sessionData']
+        if self.last_auth:
+            if (datetime.today() - self.last_auth).seconds >= (60 * 60 * 5):
+                self.session = self.get_login()['sessionData']
 
     def prettyable(fn):
         """ Allows pretty printing of function by passing pretty = True """
