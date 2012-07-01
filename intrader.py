@@ -47,7 +47,7 @@ class PriceScraper(threading.Thread):
                         self.data.price.save(rec)
                     print 'New price data recorded for', self.contracts
                 else:
-                    'No new price data for', self.contracts
+                    print 'No new price data for', self.contracts
                 time.sleep(5)
             except TypeError: # some kind of unicode thing?
                 print 'Error in PriceScraper'
