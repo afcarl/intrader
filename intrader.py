@@ -60,9 +60,9 @@ def main():
 
     intrade = intrade_api.Intrade()
 
-    dow_thread = DowScraper(data)
-    dow_thread.setDaemon(True)
-    dow_thread.start()
+    # dow_thread = DowScraper(data)
+    # dow_thread.setDaemon(True)
+    # dow_thread.start()
 
     for contract_group in [['743474', '743475'],
                            ['639648', '639649']]:
