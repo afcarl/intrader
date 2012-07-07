@@ -8,6 +8,7 @@ from simplejson import dumps
 import ConfigParser
 import pytz
 from datetime import datetime
+from intrader_lib import initLogger
 
 class IntradeError(Exception):
     pass
@@ -25,6 +26,7 @@ class Intrade():
     def __init__(self, config_path = 'intrader.conf'):
         self.extract_config(config_path)
         self.session = self.get_login()['sessionData']
+        self.logger = initLogger(__name__, 'debug', email = False)
 
     def __str__(self):
         prefix = 'SANDBOXED' if self.sandbox else ''
@@ -100,12 +102,18 @@ class Intrade():
                 r = requests.get(''.join([url, res]), params = params)
                 break
             except:
+                print 'Request error in Intrader.get logged in Mongo'
+                self.logger.error('get.request', exc_info = True)
                 pass # this should probably be less infinite
         
         try:
             parsed = xmltodict.parse(r.content)
         except ExpatError:
-            raise IntradeError('error parsing GET return')
+            try:
+                self.logger.error('get.parsexml %s', r.raw, exc_info = True)
+            except:
+                self.logger.error('get.parsexml could not get raw', exc_info = True)
+            raise IntradeError('error parsing GET return from XML')
 
         for key in parsed.iterkeys():
             if 'error' in parsed[key]:
