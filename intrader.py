@@ -52,7 +52,7 @@ class PriceScraper(threading.Thread):
 def main():
 
     logger = init_logger(__file__, 'debug')
-    logger.info('BEGAN EXECUTION')
+    logger.info('began execution')
 
     conn = pymongo.Connection()
     data = conn.intrade
@@ -77,8 +77,8 @@ def main():
         time.sleep(60)
 
 def cleanup():
-    logger = init_logger(__file__, 'debug')
-    logger.info('STOPPED EXECUTION')
+    logger = init_logger('cleanup', 'debug')
+    logger.info('stopped execution')
 
 if __name__ == '__main__':
     atexit.register(cleanup)
