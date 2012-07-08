@@ -8,7 +8,7 @@ from simplejson import dumps
 import ConfigParser
 import pytz
 from datetime import datetime
-from intrader_lib import init_logger
+from intrader_log_lib import init_logger
 
 class IntradeError(Exception):
     pass

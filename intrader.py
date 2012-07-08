@@ -1,3 +1,5 @@
+""" Currently just a contract price / orderbook scraper """
+
 import sys
 import pymongo
 import intrade_api
@@ -5,14 +7,15 @@ import threading
 from simplejson import dumps
 import time
 from math import floor
-from intrader_lib import init_logger
+from intrader_log_lib import init_logger
+from intrader_formatters import format_prices
 from datetime import datetime
 import atexit
 
 class PriceScraper(threading.Thread):
     def __init__(self, data, intrade, contracts):
         threading.Thread.__init__(self)
-        self.logger = init_logger(__name__, 'debug')
+        self.logger = init_logger(__name__, 'error')
         self.data = data
         self.intrade = intrade
         self.contracts = contracts
@@ -25,12 +28,12 @@ class PriceScraper(threading.Thread):
             try:
                 r = self.intrade.prices(self.contracts, timestamp = self.last_new)
                 self.last_new = r['@lastUpdateTime']
-                if 'contractInfo' in r:
-                    if not isinstance(r['contractInfo'], list):
-                        r['contractInfo'] = [r['contractInfo']]
-                    for rec in r['contractInfo']:
-                        rec['@lastUpdateTime'] = r['@lastUpdateTime']
-                        self.data.price.save(rec)
+                new_info = False
+                for contract in format_prices(r):
+                    if contract:
+                        new_info = True
+                        self.data.price.save(contract)
+                if new_info:
                     print ' '.join(['New price data recorded for',
                                     str(self.contracts), 'at',
                                     str(datetime.today())])
@@ -39,11 +42,11 @@ class PriceScraper(threading.Thread):
                 print 'Prices call disabled outside of market hours'
             except intrade_api.IntradeError:
                 print ' '.join(['Intrade Error in PriceScraper at',
-                                str(datetime.today()), 'see Mongo logs'])
+                                str(datetime.today()), '... see Mongo logs'])
                 self.logger.error('Intrade Error in PriceScraper', exc_info = True)
             except:
                 print ' '.join(['Unexpected Error detected in PriceScraper at',
-                                str(datetime.today()), 'see Mongo logs'])
+                                str(datetime.today()), '... see Mongo logs'])
                 self.logger.error('Unexpected Error in PriceScraper', exc_info = True)
             finally:
                 time.sleep(1)
@@ -51,7 +54,7 @@ class PriceScraper(threading.Thread):
     
 def main():
 
-    logger = init_logger(__file__, 'debug')
+    logger = init_logger(__file__, 'debug', email = False)
     logger.info('began execution')
 
     conn = pymongo.Connection()
@@ -67,7 +70,6 @@ def main():
                             '754566', '754571', '754586', '755933'],
                            ['745813', '745814'],
                            ['745822', '745823'],
-                           ['745822', '745823'],
                            ['745735'], ['745736']]:
         price_thread = PriceScraper(data, intrade, contract_group)
         price_thread.setDaemon(True)
@@ -77,7 +79,7 @@ def main():
         time.sleep(60)
 
 def cleanup():
-    logger = init_logger('cleanup', 'debug')
+    logger = init_logger('cleanup', 'debug', email = False)
     logger.info('stopped execution')
 
 if __name__ == '__main__':

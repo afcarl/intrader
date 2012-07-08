@@ -1,4 +1,4 @@
-""" Logging functions for use with Intrader """
+""" Helper functions for using Intrader """
 
 import logging
 from mongolog.handlers import MongoHandler
