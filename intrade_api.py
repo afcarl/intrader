@@ -8,7 +8,7 @@ from simplejson import dumps
 import ConfigParser
 import pytz
 from datetime import datetime
-from intrader_lib import initLogger
+from intrader_lib import init_logger
 
 class IntradeError(Exception):
     pass
@@ -26,7 +26,7 @@ class Intrade():
     def __init__(self, config_path = 'intrader.conf'):
         self.extract_config(config_path)
         self.session = self.get_login()['sessionData']
-        self.logger = initLogger(__name__, 'debug', email = False)
+        self.logger = init_logger(__name__, 'debug', email = False)
 
     def __str__(self):
         prefix = 'SANDBOXED' if self.sandbox else ''

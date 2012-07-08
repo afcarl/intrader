@@ -5,7 +5,7 @@ from mongolog.handlers import MongoHandler
 from logging.handlers import SMTPHandler
 import ConfigParser
 
-def initLogger(log_name, log_level, email = True):
+def init_logger(log_name, log_level, email = True):
     """ Creates logger instance with MongoHandler """
     log = logging.getLogger(log_name)
     if 'debug' in log_level.lower():
@@ -70,5 +70,5 @@ class TlsSMTPHandler(logging.handlers.SMTPHandler):
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            self.handleError(record)    
+            self.handleError(record)
 

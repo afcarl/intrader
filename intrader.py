@@ -5,13 +5,14 @@ import threading
 from simplejson import dumps
 import time
 from math import floor
-from intrader_lib import initLogger
+from intrader_lib import init_logger
 from datetime import datetime
+import atexit
 
 class PriceScraper(threading.Thread):
     def __init__(self, data, intrade, contracts):
         threading.Thread.__init__(self)
-        self.logger = initLogger(__name__, 'debug')
+        self.logger = init_logger(__name__, 'debug')
         self.data = data
         self.intrade = intrade
         self.contracts = contracts
@@ -45,10 +46,13 @@ class PriceScraper(threading.Thread):
                                 str(datetime.today()), 'see Mongo logs'])
                 self.logger.error('Unexpected Error in PriceScraper', exc_info = True)
             finally:
-                time.sleep(5)
+                time.sleep(1)
                 pass
     
 def main():
+
+    logger = init_logger(__file__, 'debug')
+    logger.info('BEGAN EXECUTION')
 
     conn = pymongo.Connection()
     data = conn.intrade
@@ -56,7 +60,7 @@ def main():
     intrade = intrade_api.Intrade()
 
     for contract_group in [['743474', '743475'],
-                           ['639648', '639649']
+                           ['639648', '639649'],
                            ['639654', '639655', '639656'],
                            ['639651', '639652', '639653'],
                            ['754568', '754585', '754570', '754569', '754567',
@@ -72,5 +76,10 @@ def main():
     while True:
         time.sleep(60)
 
+def cleanup():
+    logger = init_logger(__file__, 'debug')
+    logger.info('STOPPED EXECUTION')
+
 if __name__ == '__main__':
+    atexit.register(cleanup)
     main()
