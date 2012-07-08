@@ -79,7 +79,7 @@ def main():
         time.sleep(60)
 
 def cleanup():
-    logger = init_logger('cleanup', 'debug', email = False)
+    logger = init_logger('cleanup', 'info')
     logger.info('stopped execution')
 
 if __name__ == '__main__':
