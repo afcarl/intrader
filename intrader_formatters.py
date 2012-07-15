@@ -1,9 +1,8 @@
-""" Formats XML -> JSON returns from Intrade to be more useful """
+""" Formats XML -> JSON returns from Intrade to be more useful. All prices
+are stored in cents as integers. """
 from datetime import datetime
 from decimal import Decimal
 import time
-
-######## ALL PRICES STORED IN CENTS AS INTEGERS ########
 
 def format_prices(input_rec):
     """ Generator of formatted individual contract records from price return """

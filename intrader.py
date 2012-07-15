@@ -26,7 +26,8 @@ class PriceScraper(threading.Thread):
         while True:
 
             try:
-                r = self.intrade.prices(self.contracts, timestamp = self.last_new)
+                r = self.intrade.prices(self.contracts, timestamp = self.last_new,
+                                        depth = 10)
                 self.last_new = r['@lastUpdateTime']
                 new_info = False
                 for contract in format_prices(r):

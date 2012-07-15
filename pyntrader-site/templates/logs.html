@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Logs - Pyntrader{% endblock %}
+
+{% block content %}
+  <h1>Pyntrader Logs</h1>
+  <h4>Got some logs over here!</h4>
+
+  <br />  
+
+  <table id='table-logs' class="table table-striped table-bordered table-condensed">
+	<thead>
+	  <th>Row</th>
+	  <th>_id</th>
+	  <th>Level</th>
+	  <th>Time</th>
+	  <th>Process</th>
+	  <th>Message</th>	  
+	</thead>
+	<tbody>	
+	{% for row in log_data %}
+	  <tr>
+		<td>{{ row.rownum }}</td>
+		<td>{{ row._id }}</td>
+		<td>{{ row.level }}</td>
+		<td>{{ row.time }}</td>
+		<td>{{ row.process }}</td>
+		<td>{{ row.message }}</td>		
+	  </tr>		
+	{% endfor %}	
+	</tbody>
+  </table>
+
+{% endblock %}

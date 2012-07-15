@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Charts - Pyntrader{% endblock %}
+
+{% block content %}
+
+<style>
+
+#chart {
+height: 600px;
+}
+
+</style>
+
+<h1>Pyntrader Contract Data</h1>
+<h4>Make it nice and charty!</h4>
+<br />
+
+<div class='container-fluid'>
+<div class='row-fluid'>
+<div id='controls' class='span3'>
+  <form id='chart-controls' class='form'>
+
+	<div class='control-group'>	
+	  <label class='control-label' for='contract-group'>Contract Group</label>	  
+	  <select id='contract-group' type='contract-group' name='contract-group'>
+		<option value='no-selection'>None Selected</option>
+		{% for item in groups %}
+		  <option value={{ item.id }}>{{ item.name }}</option>
+		{% endfor %}		
+	  </select>
+	</div>
+
+	<div class='control-group'>
+	  <label class='control-label' for='chart-types'>Chart Type</label>
+	  <div class='controls'>
+		<label class='radio inline'>
+		  <input type='radio' name='options-chart' value='indiv' checked='checked'>Individuals
+		</label>
+		<label class='radio inline'>
+		  <input type='radio' name='options-chart' value='agg'>Aggregates		  
+		</label>
+	  </div>
+	</div>
+	  
+	<div class='control-group'>
+	  <label class='control-label' for='contract-select'>Select Contract(s)</label>
+	  <select id='contract-select' type='contract-select' 
+			  name='contract-select' multiple='multiple'>
+		<option value='no-selection'>No Group Selected</option>
+	  </select>
+	</div>
+
+	<div class='control-group'>
+	  <label class='control-label' for='order-types'>Order Types</label>
+	  <div class='controls'>
+		<label class='radio inline'>	
+		  <input type='radio' name='options-order' value='both' checked='checked'>Both
+		</label>
+		<label class='radio inline'>
+		  <input type='radio' name='options-order' value='bid'>Bid		  
+		</label>
+		<label class='radio inline'>
+		  <input type='radio' name='options-order' value='offer'>Offer		  
+		</label>		
+	  </div>		
+	</div>
+
+	<br />	
+
+	<div class='control-group'>
+	  <div class='controls'>
+		<button type='submit' class='btn-primary' onSubmit='return false;' style='width:80px'>
+		  <i class='icon-bar-chart icon-white'></i> Chart!</button>
+	  </div>
+	</div>	
+
+	<div id='chart-alert' class='alert alert-error hide'>
+	  Invalid inputs to chart!	  
+	</div>	  
+
+  </form>
+</div>
+
+<script type='text/javascript' src='static/js/populate_contracts.js'></script>
+
+<div id='chart' class='span9'>
+  <script type='text/javascript' src='static/lib/Highstock-1.1.6/js/highstock.js'></script>
+  <script type='text/javascript' src='static/js/chart.js'></script>
+</div> <!-- chart -->
+
+</div>
+</div>
+
+{% endblock %}
