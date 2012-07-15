@@ -21,7 +21,24 @@
 	{% for row in log_data %}
 	  <tr>
 		<td>{{ row.rownum }}</td>
-		<td>{{ row._id }}</td>
+
+		<div id='log-modal-{{ row._id }}' class='modal hide' style='display: none; '>
+		  <div class='modal-header'>
+			<h3>{{ row._id }}</h3>
+		  </div>
+		  <div class='modal-body'>
+			<p>{{ row.info }}</p>
+		  </div>			
+		</div>
+
+		<td>
+		  {% if row.info %}
+			<a data-toggle='modal' href='#log-modal-{{ row._id }}'>{{ row._id }}
+			</a>
+		  {% else %}
+			{{ row._id }}
+		  {% endif %}			
+		</td>
 		<td>{{ row.level }}</td>
 		<td>{{ row.time }}</td>
 		<td>{{ row.process }}</td>

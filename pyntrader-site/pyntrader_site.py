@@ -2,6 +2,7 @@ from flask import Flask, render_template, jsonify, redirect, url_for, request
 import pymongo
 from bson import ObjectId as oid
 from itertools import product
+from simplejson import loads
 
 app = Flask(__name__)
 
@@ -98,12 +99,42 @@ def get_contract_names(group_id):
 
 @app.route('/settings')
 def settings():
-    return render_template('settings.html')
+
+    groups = []
+    for rec in data.contract_groups.find():
+        groups.append({'id': str(rec['_id']), 'name': rec['name']})
+
+    return render_template('settings.html', groups = groups)
+
+@app.route('/delete_group', methods = ['POST'])
+def delete_group():
+    to_delete = dict(request.form)['toDelete'][0]
+    data.contract_groups.remove({'_id': oid(to_delete)})
+    return redirect(url_for('settings'), 301)
+
+@app.route('/add_group', methods = ['POST'])
+def add_group():
+    to_add = loads(dict(request.form)['data'][0])
+
+    if to_add['createNew']:
+        result = {'name': to_add['group']}
+    else:
+        q = {'_id': oid(to_add['group'])}
+        result = {}
+
+    result['contracts'] = [{'id': x['id'], 'name': x['name']}
+                           for x in to_add['contracts']]
+
+    if to_add['createNew']:
+        data.contract_groups.insert(result)
+    else:
+        print q, result
+        data.contract_groups.update(q, {'$set': result}, upsert = False)
+
+    return redirect(url_for('settings'), 301)
 
 @app.route('/charts')
 def charts():
-
-    # initialize charts page, does not handle the chart update
 
     groups = []
     for rec in data.contract_groups.find():
@@ -122,7 +153,8 @@ def logs():
                          'level': rec['levelname'],
                          'time': rec['time'].strftime("%Y-%m-%d %H:%m:%S"),
                          'process': rec['processName'],
-                         'message': rec['message']})
+                         'message': rec['message'],
+                         'info': rec['exc_info']})
     return render_template('logs.html', log_data = log_data)
 
 @app.route('/')
