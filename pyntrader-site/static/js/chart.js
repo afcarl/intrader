@@ -41,6 +41,10 @@ $(function() {
 						selected: 1
 					},
 
+					scrollbar: {
+						enabled: false
+					},
+
 					title: {
 						text: data.title
 					},

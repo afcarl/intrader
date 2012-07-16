@@ -22,13 +22,14 @@ $(function() {$('select#contract-group').change(
 
 			var selected = $('#contract-group').val();
 
-			$('.input-row').each(function() { 
-				if ($(this).hasClass('row1') === false) {
-					$(this).remove(); 
-				}
-			});
-
 			$.getJSON($SCRIPT_ROOT + '/get_contract_names/' + selected, function(data){
+    
+    			$('.input-row').each(function() { 
+    				if ($(this).hasClass('row1') === false) {
+    					$(this).remove(); 
+    				}
+    			});
+    
 				for (i = 0; i < data.data.length; i++){
 					
 					// create and populate new input field
