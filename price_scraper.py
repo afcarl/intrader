@@ -66,6 +66,7 @@ def main():
         price_thread.start()
 
     while True:
+
         time.sleep(60)
 
 def cleanup():
