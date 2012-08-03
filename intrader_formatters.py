@@ -47,6 +47,11 @@ def format_prices(input_rec):
             if ('offers' in contract['orderBook'] 
                 and 'offer' in contract['orderBook']['offers'] 
                 and contract['orderBook']['offers']['offer']):
+
+                if not isinstance(contract['orderBook']['offers']['offer'],
+                                  list):
+                    contract['orderBook']['offers']['offer'] = [
+                        contract['orderBook']['offers']['offer']]
     
                 orders = []
                 for offer in contract['orderBook']['offers']['offer']:
@@ -59,6 +64,11 @@ def format_prices(input_rec):
             if ('bids' in contract['orderBook']
                 and 'bid' in contract['orderBook']['bids']
                 and contract['orderBook']['bids']['bid']):
+
+                if not isinstance(contract['orderBook']['bids']['bid'],
+                                  list):
+                    contract['orderBook']['bids']['bid'] = [
+                        contract['orderBook']['bids']['bid']]
     
                 bids = []
                 for bid in contract['orderBook']['bids']['bid']:
