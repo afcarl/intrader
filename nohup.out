@@ -1,0 +1,12 @@
+[NotebookApp] Using existing profile dir: u'/Users/omnijinx/.ipython/profile_default'
+[NotebookApp] Serving notebooks from /Users/omnijinx/Documents/repos/intrader
+[NotebookApp] The port 8888 is already in use, trying another random port.
+[NotebookApp] The IPython Notebook is running at: http://127.0.0.1:8889/
+[NotebookApp] Use Control-C to stop this server and shut down all kernels.
+[NotebookApp] Using local MathJax
+[NotebookApp] Kernel started: 2cc51dd4-9ebc-47d0-ac13-71eb5c9bbe52
+[NotebookApp] Connecting to: tcp://127.0.0.1:57408
+[NotebookApp] Connecting to: tcp://127.0.0.1:57409
+[NotebookApp] Connecting to: tcp://127.0.0.1:57411
+[IPKernelApp] To connect another client to this kernel, use:
+[IPKernelApp] --existing kernel-2cc51dd4-9ebc-47d0-ac13-71eb5c9bbe52.json

@@ -58,6 +58,7 @@ def main():
     data = conn.intrade
 
     intrade = intrade_api.Intrade()
+    intrade.sandbox = False # this should always use real data
 
     for contract_group in [rec['contracts'] for rec in data.contract_groups.find()]:
         contracts = [int(contract['id']) for contract in contract_group]

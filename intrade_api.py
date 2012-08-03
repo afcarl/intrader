@@ -24,20 +24,16 @@ class Intrade():
     test_post = 'http://testexternal.intrade.com/xml/handler.jsp'
 
     def __init__(self, config_path = 'intrader.conf'):
+    
         self.extract_config(config_path)
         self.session = self.get_login()['sessionData']
         self.logger = init_logger(__name__, 'debug', email = False)
-
-    def __str__(self):
-        prefix = 'SANDBOXED' if self.sandbox else ''
-        return ' '.join([prefix, 'Intrade API caller instance with user', self.user,
-                         'and session', self.session])
 
     def extract_config(self, config_path):
         """ Reads config file variables into Intrade object """
         config = ConfigParser.ConfigParser()
         config.read(config_path)
-
+    
         # sandbox and auth
         self.sandbox = (True if config.get('Sandbox', 'enabled').lower() == 'true'
                         else False)
@@ -47,11 +43,22 @@ class Intrade():
         else:
             self.user = config.get('Auth', 'username')
             self.password = config.get('Auth', 'password')
-            
+                
         # market hours
         self.intrade_tz = pytz.timezone(config.get('Intrade', 'timezone'))
         self.market_start = config.get('Intrade', 'market_start')
         self.market_end = config.get('Intrade', 'market_end')
+
+        # trading limits
+        self.long_max_buy = config.get('Limits', 'long_max_buy')
+        self.long_min_sell = config.get('Limits', 'long_min_sell')
+        self.short_max_sell = config.get('Limits', 'short_max_sell')
+        self.short_min_buy = config.get('Limits', 'short_min_buy')
+
+    def __str__(self):
+        prefix = 'SANDBOXED' if self.sandbox else ''
+        return ' '.join([prefix, 'Intrade API caller instance with user', self.user,
+                         'and session', self.session])
 
     def keepalive(self):
         """ Reauths if necessary to keep connection alive """
@@ -102,7 +109,6 @@ class Intrade():
                 r = requests.get(''.join([url, res]), params = params)
                 break
             except:
-                print 'Request error in Intrader.get logged in Mongo'
                 self.logger.error('get.request', exc_info = True)
                 pass # this should probably be less infinite
         
@@ -173,6 +179,7 @@ class Intrade():
     def prices(self, contract_ids, depth = 5, timestamp = 0, **kwargs):
         """ Current prices posted after timestamp for given contract IDs """
         self.check_market_hours()
+        contract_ids = self.stringify(contract_ids)
         return self.get('ContractBookXML.jsp', {'id': contract_ids,
                                                 'depth': depth,
                                                 'timestamp': timestamp})
@@ -180,6 +187,7 @@ class Intrade():
     @prettyable
     def con_info(self, contract_ids, **kwargs):
         """ Lifetime contract info for one contract """
+        contract_ids = self.stringify(contract_ids)
         return self.get('ConInfo.jsp', {'id': contract_ids})
 
     @prettyable
@@ -187,6 +195,7 @@ class Intrade():
         """ Historical closing prices for lifetime of one contract """
         if not isinstance(contract_id, (str, int)):
             raise IntradeError('closing_price requires exactly one contract_id (str or int)')
+        contract_id = self.stringify(contract_id)
         return self.get('ClosingPrice.jsp', {'conID': contract_id})
 
     def time_and_sales(self, contract_id):
@@ -197,8 +206,7 @@ class Intrade():
         """ Available and Frozen balances in USD cents """
         resp = self.post(params = {'header': {'requestOp': 'getBalance'},
                                    'body': {'sessionData': self.session}})
-        return (int(Decimal(resp['tsResponse']['available']) * 100),
-                int(Decimal(resp['tsResponse']['frozen'])))
+        return (int(Decimal(resp['available']) * 100), int(Decimal(resp['frozen'])))
 
     def order(self, order_dict):
         """ Constructs comma-delimited string describing a new order """
@@ -231,6 +239,7 @@ class Intrade():
     def multi_order_request(self, orders, cancel_previous = False, **kwargs):
         """ Submits multiple orders """
         self.check_market_hours()
+        orders = self.stringify(orders)
         return self.post(params = {'header': {'requestOp': 'multiOrderRequest'},
                                    'body': {'cancelPrevious': cancel_previous,
                                             'order': orders,
@@ -240,6 +249,7 @@ class Intrade():
     def cancel_multiple_orders(self, orders, **kwargs):
         """ Cancels all open orders previously submitted """
         self.check_market_hours()
+        orders = self.stringify(orders)
         return self.post(params = {'header': {'requestOp': 'cancelMultipleOrdersForUser'},
                                    'body': {'orderID': orders,
                                             'sessionData': self.session}})
@@ -248,6 +258,7 @@ class Intrade():
     def cancel_orders(self, contract, types = 'ALL', **kwargs):
         """ Cancels specified type of open orders in one contract """
         self.check_market_hours()
+        contract = self.stringify(contract)
         if types not in ['ALL', 'BIDS', 'OFFERS']:
             raise IntradeError('cancel_orders requires order type of ALL, BIDS, or OFFERS')
         if types == 'ALL':
@@ -272,6 +283,7 @@ class Intrade():
     @prettyable
     def get_position(self, contracts, **kwargs):
         """ Gets current positions for specified contracts """
+        contracts = self.stringify(contracts)
         return self.post(params = {'header': {'requestOp': 'getPosForUser'},
                                    'body': {'contractID': contracts,
                                             'sessionData': self.session}})
@@ -281,13 +293,39 @@ class Intrade():
         """ Gets all of user's open orders for all or specified contract """
         body = {'sessionData': self.session}
         if contract:
-            body['contractID'] = contract
+            body['contractID'] = str(contract)
         return self.post(params = {'header': {'requestOp': 'getOpenOrders'},
                                    'body': body})
 
     @prettyable
     def get_orders(self, orders, **kwargs):
         """ Gets information on specified order IDs """
+        orders = self.stringify(orders)
         return self.post(params = {'header': {'requestOp': 'getOrdersForUser'},
                                    'body': {'orderID': orders,
                                             'sessionData': self.session}})
+
+    @prettyable
+    def get_messages(self, timestamp = 0, **kwargs):
+        """ Returns the last 50 messages on a user's account """
+        return self.post(params = {'header': {'requestOp': 'getUserMessages'},
+                                   'body': {'timestamp': timestamp,
+                                            'sessionData': self.session}})
+
+    def set_as_read(self, message_id):
+        """ Sets one message as read. Can potentially take multiple
+        IDs in each post, but requires work on make_xml.
+
+        NOTE: Seems to be a bug where this sets all messages as read """
+        str_id = self.stringify(message_id)
+        return self.post(params = {'header': {'requestOp': 'setAsRead'},
+                                   'body': {'userNotificationID': str_id,
+                                            'sessionData': self.session}})
+
+    def stringify(self, to_stringify):
+        """ Casts single element or list into string type """
+        if isinstance(to_stringify, list):
+            return [str(x) for x in to_stringify]
+        else:
+            return str(to_stringify)
+            
